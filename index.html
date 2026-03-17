@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>When Does Diversity Help Quality?</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #faf9f6; color: #1a1a1a; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+<script type="text/babel" data-type="module">
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useRef = React.useRef;
+var useMemo = React.useMemo;
+
+function seededRand(seed) {
+  var s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+var N = 120;
+function makePool() {
+  var r = seededRand(42);
+  var arr = [];
+  for (var id = 0; id < N; id++) {
+    var group = r() < 0.22 ? "pattern" : "rest";
+    var t1 = r(), t2 = r();
+    var talent = Math.min(1, Math.max(0, t1 * 0.5 + t2 * 0.5));
+    var grahamTalent;
+    if (group === "pattern") {
+      grahamTalent = Math.min(1, Math.max(0, 0.55 + t1 * 0.25 + t2 * 0.25));
+    } else {
+      grahamTalent = Math.min(1, Math.max(0, 0.05 + t1 * 0.32 + t2 * 0.32));
+    }
+    var proxy;
+    if (group === "pattern") {
+      proxy = Math.min(1, Math.max(0, 0.58 + talent * 0.08 + (r() - 0.5) * 0.22));
+    } else {
+      proxy = Math.min(1, Math.max(0, 0.05 + talent * 0.42 + (r() - 0.5) * 0.22));
+    }
+    var noise = r();
+    arr.push({ id: id, group: group, talent: talent, grahamTalent: grahamTalent, proxy: proxy, noise: noise });
+  }
+  return arr;
+}
+var POOL = makePool();
+
+function selectBlended(pool, signal, rate, divWeight) {
+  var n = Math.floor(pool.length * rate);
+  if (n < 1) n = 1;
+  var pat = pool.filter(function(c) { return c.group === "pattern"; });
+  var rest = pool.filter(function(c) { return c.group === "rest"; });
+  var patSorted = pat.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var restSorted = rest.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var meritSorted = pool.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var meritRestCount = 0;
+  for (var i = 0; i < n; i++) {
+    if (meritSorted[i].group === "rest") meritRestCount++;
+  }
+  var propRestCount = Math.round(n * rest.length / pool.length);
+  var blendedRestCount = Math.round(meritRestCount + divWeight * (propRestCount - meritRestCount));
+  blendedRestCount = Math.max(0, Math.min(n, blendedRestCount));
+  var blendedPatCount = n - blendedRestCount;
+  blendedPatCount = Math.min(blendedPatCount, patSorted.length);
+  blendedRestCount = Math.min(blendedRestCount, restSorted.length);
+  if (blendedPatCount + blendedRestCount < n) {
+    var diff = n - blendedPatCount - blendedRestCount;
+    if (blendedPatCount < patSorted.length) {
+      blendedPatCount = Math.min(patSorted.length, blendedPatCount + diff);
+    } else {
+      blendedRestCount = Math.min(restSorted.length, blendedRestCount + diff);
+    }
+  }
+  var ids = new Set();
+  for (var p = 0; p < blendedPatCount; p++) ids.add(patSorted[p].id);
+  for (var r2 = 0; r2 < blendedRestCount; r2++) ids.add(restSorted[r2].id);
+  return ids;
+}
+
+function topMissed(ids, pool, truthField) {
+  var field = truthField || "talent";
+  var n25 = Math.floor(pool.length * 0.25);
+  var top = pool.slice().sort(function(a, b) { return b[field] - a[field]; }).slice(0, n25);
+  return top.filter(function(c) { return !ids.has(c.id); });
+}
+
+function sortedByTruth(pool, truthField) {
+  return pool.slice().sort(function(a, b) { return b[truthField] - a[truthField]; });
+}
+
+var WORLDS = [
+  {
+    id: "graham",
+    name: "Graham\u2019s World",
+    signal: "grahamTalent",
+    truth: "grahamTalent",
+    subtitle: "Quality measurable. Pattern group genuinely better.",
+  },
+  {
+    id: "biased",
+    name: "Pattern-Match World",
+    signal: "proxy",
+    truth: "talent",
+    subtitle: "Quality unmeasurable. Proxy rewards the pattern, blind to everyone else.",
+  },
+  {
+    id: "random",
+    name: "Random Filter",
+    signal: "noise",
+    truth: "talent",
+    subtitle: "Control. Filter is pure noise.",
+  },
+];
+
+// Small multiple: one talent grid per world
+function TalentGrid(props) {
+  var selected = props.selected;
+  var truthField = props.truthField;
+  var ref = useRef(null);
+  var sorted = sortedByTruth(POOL, truthField);
+  var topCutoffIdx = Math.floor(sorted.length * 0.25) - 1;
+  var topCutoff = topCutoffIdx >= 0 ? sorted[topCutoffIdx][truthField] : 0;
+  var missed = topMissed(selected, POOL, truthField);
+  var missedIds = {};
+  for (var m = 0; m < missed.length; m++) missedIds[missed[m].id] = true;
+
+  useEffect(function() {
+    var el = ref.current;
+    if (!el) return;
+    var dpr = window.devicePixelRatio || 1;
+    var W = props.width || 320;
+    var cols = 12;
+    var rows = Math.ceil(sorted.length / cols);
+    var pad = 8;
+    var gapX = (W - pad * 2) / cols;
+    var gapY = gapX;
+    var H = pad + rows * gapY + 4;
+    var dotR = gapX * 0.38;
+
+    el.width = W * dpr;
+    el.height = H * dpr;
+    el.style.width = W + "px";
+    el.style.height = H + "px";
+    var ctx = el.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    // Top quartile bracket — thin line
+    var topCount = Math.floor(sorted.length * 0.25);
+    var bracketRows = Math.ceil(topCount / cols);
+    var lastRowCols = topCount % cols || cols;
+    // just a subtle bottom border under the top quartile
+    var lineY = pad + bracketRows * gapY - gapY * 0.12;
+    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(pad, lineY);
+    ctx.lineTo(W - pad, lineY);
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = "#999";
+    ctx.font = "8px DM Mono, monospace";
+    ctx.textAlign = "right";
+    ctx.fillText("top quartile \u2191", W - pad, lineY + 10);
+
+    for (var i = 0; i < sorted.length; i++) {
+      var c = sorted[i];
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var cx = pad + col * gapX + gapX / 2;
+      var cy = pad + row * gapY + gapY / 2;
+      var isSelected = selected.has(c.id);
+      var isMissed = missedIds[c.id];
+      var isTop = c[truthField] >= topCutoff;
+
+      if (isMissed) {
+        // Red open circle + X — rejected talent
+        ctx.beginPath();
+        ctx.arc(cx, cy, dotR * 0.65, 0, Math.PI * 2);
+        ctx.strokeStyle = "#c0392b";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - dotR * 0.32, cy - dotR * 0.32);
+        ctx.lineTo(cx + dotR * 0.32, cy + dotR * 0.32);
+        ctx.moveTo(cx + dotR * 0.32, cy - dotR * 0.32);
+        ctx.lineTo(cx - dotR * 0.32, cy + dotR * 0.32);
+        ctx.strokeStyle = "#c0392b";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+        if (c.group === "pattern") {
+          ctx.fillStyle = "#2980b9";
+        } else {
+          ctx.fillStyle = "#1a1a1a";
+        }
+        ctx.fill();
+        if (c.group === "pattern") {
+          // small inner ring to distinguish
+          ctx.beginPath();
+          ctx.arc(cx, cy, dotR * 0.4, 0, Math.PI * 2);
+          ctx.fillStyle = "#faf9f6";
+          ctx.fill();
+        }
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy, dotR * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = isTop ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.06)";
+        ctx.fill();
+      }
+    }
+  }, [selected, missed.length, props.width]);
+
+  return React.createElement("canvas", { ref: ref, style: { display: "block" } });
+}
+
+function computeStats(selected, truth) {
+  var selArr = POOL.filter(function(c) { return selected.has(c.id); });
+  var avgTalent = selArr.length
+    ? selArr.reduce(function(s, c) { return s + c[truth]; }, 0) / selArr.length
+    : 0;
+  var missed = topMissed(selected, POOL, truth);
+  var topN = Math.floor(POOL.length * 0.25);
+  var topFound = topN - missed.length;
+  var patInSel = selArr.filter(function(c) { return c.group === "pattern"; }).length;
+  return {
+    avgTalent: avgTalent,
+    missed: missed.length,
+    topFound: topFound,
+    topN: topN,
+    patShare: selArr.length ? patInSel / selArr.length : 0,
+    n: selArr.length,
+  };
+}
+
+function App() {
+  var _rate = useState(0.25);
+  var rate = _rate[0], setRate = _rate[1];
+  var _div = useState(0);
+  var divWeight = _div[0], setDiv = _div[1];
+
+  // Compute all worlds simultaneously
+  var allData = useMemo(function() {
+    return WORLDS.map(function(w) {
+      var selected = selectBlended(POOL, w.signal, rate, divWeight);
+      var baseSelected = selectBlended(POOL, w.signal, rate, 0);
+      var stats = computeStats(selected, w.truth);
+      var baseStats = computeStats(baseSelected, w.truth);
+      return {
+        world: w,
+        selected: selected,
+        stats: stats,
+        baseStats: baseStats,
+        delta: stats.avgTalent - baseStats.avgTalent,
+      };
+    });
+  }, [rate, divWeight]);
+
+  var serif = "Source Serif 4, Georgia, serif";
+  var mono = "DM Mono, monospace";
+
+  return (
+    <div style={{
+      maxWidth: 960, margin: "0 auto",
+      fontFamily: serif,
+      padding: "48px 32px 80px",
+      lineHeight: 1.6,
+    }}>
+      {/* Title */}
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>
+        {"Does optimizing for diversity help or hurt quality?"}
+      </h1>
+      <p style={{ fontSize: 15, color: "#555", marginBottom: 6, maxWidth: 620 }}>
+        {"It depends entirely on whether your filter is measuring quality or pattern-matching. One slider, three worlds, three different answers."}
+      </p>
+      <p style={{ fontSize: 13, color: "#888", marginBottom: 32, maxWidth: 620 }}>
+        {"120 founders sorted left-to-right, top-to-bottom by true talent. "}
+        <span style={{ fontFamily: mono, fontSize: 11 }}>
+          {"\u25cf"}{" "}
+        </span>
+        {"dark = selected (everyone else)  "}
+        <span style={{ color: "#2980b9", fontFamily: mono, fontSize: 11 }}>{"\u25ce"}</span>
+        {" blue = selected (the pattern)  "}
+        <span style={{ color: "#c0392b", fontFamily: mono, fontSize: 11 }}>{"\u2717"}</span>
+        {" = high talent, rejected"}
+      </p>
+
+      {/* Diversity slider — the single control */}
+      <div style={{ marginBottom: 36, maxWidth: 480 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{"Diversity constraint"}</div>
+          <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 500 }}>
+            {Math.round(divWeight * 100) + "%"}
+          </div>
+        </div>
+        <input type="range" min="0" max="1" step="0.02" value={divWeight}
+          onChange={function(e) { setDiv(+e.target.value); }}
+          style={{ width: "100%", accentColor: "#1a1a1a" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", fontFamily: mono, marginTop: 3 }}>
+          <span>{"pure \u201cmerit\u201d"}</span>
+          <span>{"proportional"}</span>
+        </div>
+      </div>
+
+      {/* Small multiples — three worlds side by side */}
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        {allData.map(function(d) {
+          var w = d.world;
+          var s = d.stats;
+          var delta = d.delta;
+          var deltaColor = delta > 0.005 ? "#27ae60" : delta < -0.005 ? "#c0392b" : "#999";
+          var deltaSign = delta > 0.005 ? "+" : "";
+
+          return (
+            <div key={w.id} style={{ flex: "1 1 280px", maxWidth: 320, minWidth: 260 }}>
+              {/* World title */}
+              <div style={{ marginBottom: 10, borderBottom: "1px solid #ddd", paddingBottom: 8 }}>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>{w.name}</div>
+                <div style={{ fontSize: 11.5, color: "#777", marginTop: 1 }}>{w.subtitle}</div>
+              </div>
+
+              {/* Grid */}
+              <TalentGrid selected={d.selected} truthField={w.truth} width={300} />
+
+              {/* Stats as inline prose */}
+              <div style={{ marginTop: 10, fontSize: 13, color: "#333", lineHeight: 1.7 }}>
+                {"Avg talent "}
+                <strong style={{ fontFamily: mono, fontSize: 14 }}>
+                  {(s.avgTalent * 100).toFixed(1) + "%"}
+                </strong>
+                {"  "}
+                <span style={{ color: deltaColor, fontFamily: mono, fontSize: 13 }}>
+                  {"(" + deltaSign + (delta * 100).toFixed(1) + "%)"}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#666", lineHeight: 1.7 }}>
+                {"Top quartile found: " + s.topFound + "/" + s.topN}
+                {s.missed > 0 ? ". " : ""}
+                {s.missed > 0 ? (
+                  <span style={{ color: "#c0392b" }}>
+                    {s.missed + " high-talent rejected."}
+                  </span>
+                ) : (
+                  <span style={{ color: "#27ae60" }}>{"None missed."}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: "#666" }}>
+                {"Pattern share: " + Math.round(s.patShare * 100) + "%"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Selection rate — secondary, small */}
+      <div style={{ marginTop: 36, maxWidth: 300 }}>
+        <div style={{ fontSize: 12, color: "#999", fontFamily: mono, marginBottom: 4 }}>
+          {"Selection rate: " + Math.round(rate * 100) + "% (" + Math.floor(POOL.length * rate) + " of " + POOL.length + ")"}
+        </div>
+        <input type="range" min="0.08" max="0.5" step="0.01" value={rate}
+          onChange={function(e) { setRate(+e.target.value); }}
+          style={{ width: "100%", accentColor: "#aaa" }} />
+      </div>
+
+      {/* Annotation */}
+      <div style={{ marginTop: 40, maxWidth: 620, borderTop: "1px solid #ddd", paddingTop: 20 }}>
+        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8 }}>
+          {"Graham argues you cannot simultaneously optimize two non-identical objectives. He\u2019s right\u2014"}
+          <em>{"in his world"}</em>
+          {", where quality is directly measurable and the filter works. Drag the slider in column one and watch quality drop."}
+        </p>
+        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
+          {"But most real filters aren\u2019t measuring quality. They\u2019re pattern-matching: "}
+          <em>{"Stanford, YC, male, technical"}</em>
+          {" \u2192 high score. The proxy recognizes the pattern but is nearly blind to talent outside it. In column two, the \u201cmerit\u201d filter is confidently selecting for the wrong thing. The red X\u2019s are real talent your filter can\u2019t see."}
+        </p>
+        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
+          {"Drag the diversity slider and the X\u2019s disappear. Quality goes "}
+          <em>{"up"}</em>
+          {". A diversity constraint doesn\u2019t fight quality here\u2014it corrects a broken filter."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
