@@ -1056,17 +1056,21 @@ function App() {
       </div>
 
       {/* The pivot */}
-      <div style={{ marginBottom: 20, maxWidth: 620 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 700, fontFamily: hand, marginBottom: 4, marginTop: 8 }}>
-          {"But what if \u201cObjective A\u201d isn\u2019t what you think it is?"}
+      <div style={{ marginBottom: 20, maxWidth: 640, marginTop: 8 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, fontFamily: hand, marginBottom: 6 }}>
+          {"Now apply this to hiring."}
         </h2>
-        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7 }}>
-          {"The tradeoff holds when your filter measures what you think it measures. What if it\u2019s partly a pattern-match \u2014 rewarding legible backgrounds on top of talent? Below are 100 founders. Click "}
-          <strong>{"Apply Filter"}</strong>
-          {" to see who each world\u2019s filter selects, then drag the diversity slider."}
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6 }}>
+          {"Graham\u2019s argument maps \u201cquality\u201d to Objective A and \u201cdiversity\u201d to Objective B. The tradeoff is real "}
+          <em>{"if your filter actually measures quality."}</em>
+          {" But most filters don\u2019t. They measure quality "}
+          <strong>{"+ a pattern-matching bonus"}</strong>
+          {" for legible backgrounds \u2014 Ivy League, FAANG, male, technical. When your quality score is contaminated by bias, optimizing for it isn\u2019t optimizing for quality. It\u2019s optimizing for quality + bias."}
         </p>
-        <p style={{ fontSize: 11.5, color: "#999", marginTop: 4, lineHeight: 1.5, fontStyle: "italic" }}>
-          {"\u201cTalent\u201d = future value created. Real but hard to observe at selection time."}
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7 }}>
+          {"Below are 100 founders with a true talent score (think: future value created). Click "}
+          <strong>{"Apply Filter"}</strong>
+          {" to see who three different filters select, then drag the diversity slider and watch what happens to actual talent."}
         </p>
       </div>
 
