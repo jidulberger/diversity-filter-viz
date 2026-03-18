@@ -1026,7 +1026,7 @@ function App() {
 
   return (
     <div style={{
-      maxWidth: 980, margin: "0 auto",
+      maxWidth: 960, margin: "0 auto",
       fontFamily: sans,
       padding: "44px 28px 80px",
       lineHeight: 1.6,
@@ -1062,7 +1062,7 @@ function App() {
       </div>
 
       {/* The pivot */}
-      <div style={{ marginBottom: 20, maxWidth: 640, marginTop: 8 }}>
+      <div style={{ marginBottom: 20, marginTop: 8 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, fontFamily: hand, marginBottom: 6 }}>
           {"Now apply this to hiring."}
         </h2>
@@ -1323,14 +1323,14 @@ function App() {
       </div>
 
       {/* Methodology — show don't tell */}
-      <div style={{ marginTop: 44, maxWidth: 700, borderTop: "2px solid #2a2a2a", paddingTop: 20 }}>
+      <div style={{ marginTop: 44, borderTop: "2px solid #2a2a2a", paddingTop: 20 }}>
         <p style={{ fontSize: 22, fontFamily: hand, color: "#333", lineHeight: 1.4, marginBottom: 6 }}>
           {"How the diversity constraint actually works"}
         </p>
-        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6, maxWidth: 620 }}>
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6, maxWidth: 960 }}>
           {"A common objection: if you need a good filter to select diverse candidates, why not just use that filter for everyone? The answer: you do. The diversity constraint doesn\u2019t require a better filter. It uses the same evaluation \u2014 but removes the cross-group bias by comparing candidates against their own group instead of against everyone."}
         </p>
-        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 16, maxWidth: 620 }}>
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 16, maxWidth: 960 }}>
           {"The filter evaluates everyone with the same accuracy. The problem is the additive bonus: pattern candidates start with a higher baseline score just for looking the part. When you rank across groups, that bonus dominates. When you rank within groups, the bonus is the same for everyone in the group \u2014 it cancels out, and the ranking becomes about real signal. Click below to watch:"}
         </p>
 
@@ -1356,7 +1356,7 @@ function App() {
 
         <MethodViz splitAnim={splitAnim} rate={rate} />
 
-        <div style={{ marginTop: 16, maxWidth: 620 }}>
+        <div style={{ marginTop: 16, maxWidth: 960 }}>
           <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8 }}>
             <strong>{"The tradeoff is real."}</strong>
             {" People do cluster into high-performing groups \u2014 Ivy graduates, ex-FAANG, YC alumni. These groups have been pre-filtered, so they likely have a genuine talent edge. A diversity constraint that forces proportional representation will, by definition, exclude some qualified pattern candidates in favor of non-traditional ones with lower expected value."}
@@ -1379,7 +1379,7 @@ function App() {
       </div>
 
       {/* Footnotes */}
-      <div style={{ marginTop: 48, borderTop: "1px solid #ddd", paddingTop: 12, maxWidth: 640 }}>
+      <div style={{ marginTop: 48, borderTop: "1px solid #ddd", paddingTop: 12 }}>
         <p style={{ fontSize: 11, color: "#999", lineHeight: 1.6 }}>
           <sup>{"1"}</sup>{" Paul Graham, "}
           <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#999" }}>
