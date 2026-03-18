@@ -955,6 +955,7 @@ function App() {
   var _filtered = useState(false);
   var filtered = _filtered[0], setFiltered = _filtered[1];
   var animRef = useRef(null);
+  var filterBtnRef = useRef(null);
   var _splitAnim = useState(0);
   var splitAnim = _splitAnim[0], setSplitAnim = _splitAnim[1];
   var _splitMode = useState(false);
@@ -978,13 +979,15 @@ function App() {
 
   function applyFilter() {
     if (filtered) {
-      // Reset
       setFiltered(false);
       setFilterAnim(0);
       setDiv(0);
       return;
     }
     setFiltered(true);
+    if (filterBtnRef.current) {
+      filterBtnRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     var start = performance.now();
     var duration = 1200;
     function tick(now) {
@@ -1035,11 +1038,10 @@ function App() {
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
         <div style={{ flex: "1 1 280px", maxWidth: 420 }}>
           <p style={{ fontSize: 14, color: "#555", marginBottom: 10, lineHeight: 1.7 }}>
-            {"In "}
-            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6" }}>{"The Origins of Wokeness"}</a>
-            {", Paul Graham argues that optimizing for diversity necessarily costs quality ("}
-            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6", fontSize: 12 }}>{"footnote 6"}</a>
-            {"). The math is right. Here are 80 candidates with two random, independent attributes. Drag the slider:"}
+            {"If you\u2019re selecting for quality, adding a second objective can only dilute the first. Paul Graham makes this case in "}
+            <em>{"The Origins of Wokeness"}</em>
+            <sup><a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6", textDecoration: "none" }}>{"1"}</a></sup>
+            {": diversity and quality are different objectives, so optimizing for one costs the other. He\u2019s right \u2014 in principle. Here are 80 candidates with two independent attributes. Drag the slider and watch:"}
           </p>
           <div style={{ maxWidth: 260, marginBottom: 6 }}>
             <input type="range" min="0" max="1" step="0.02" value={paretoW}
@@ -1130,7 +1132,7 @@ function App() {
       </div>
 
       {/* Apply filter button */}
-      <div style={{ marginBottom: 24 }}>
+      <div ref={filterBtnRef} style={{ marginBottom: 24 }}>
         <button onClick={applyFilter}
           style={{
             fontFamily: hand, fontSize: 22, fontWeight: 600,
@@ -1371,11 +1373,22 @@ function App() {
             {" better evaluation methods for non-traditional candidates. Without it, there\u2019s no incentive \u2014 the filter defaults to the legible pool and calls it merit."}
           </p>
           <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 14 }}>
-            {"Graham\u2019s "}
-            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6" }}>{"footnote 6"}</a>
+            {"Graham\u2019s principle"}
+            <sup><a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6", textDecoration: "none" }}>{"1"}</a></sup>
             {" is mathematically correct: you cannot simultaneously maximize two non-identical objectives. The question is whether the objective your filter is maximizing \u2014 proxy score \u2014 is close enough to the objective you care about \u2014 actual talent. Use the sliders above to decide for yourself."}
           </p>
         </div>
+      </div>
+
+      {/* Footnotes */}
+      <div style={{ marginTop: 48, borderTop: "1px solid #ddd", paddingTop: 12, maxWidth: 640 }}>
+        <p style={{ fontSize: 11, color: "#999", lineHeight: 1.6 }}>
+          <sup>{"1"}</sup>{" Paul Graham, "}
+          <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#999" }}>
+            <em>{"The Origins of Wokeness"}</em>
+          </a>
+          {". See especially footnote 6: \u201cYou can\u2019t simultaneously maximize two different objective functions, unless they\u2019re identical.\u201d"}
+        </p>
       </div>
 
     </div>
