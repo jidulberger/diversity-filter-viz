@@ -51,17 +51,14 @@ function makePool() {
     }
     // Graham's signal: a noisy measurement of grahamTalent (good but not perfect)
     var grahamSignal = Math.min(1, Math.max(0, grahamTalent + (r() - 0.5) * 0.28));
-    // Proxy: YC-like filter. Has real signal for both groups, but
-    // stronger for pattern (legible backgrounds, known anchors) than
-    // non-traditional (fewer reference points, noisier evaluation).
-    // Pattern: high baseline (pattern-match bonus) + strong talent signal
-    // Non-trad: no baseline bonus + moderate talent signal + more noise
-    var proxy;
-    if (group === "pattern") {
-      proxy = Math.min(1, Math.max(0, 0.40 + talent * 0.40 + (r() - 0.5) * 0.15));
-    } else {
-      proxy = Math.min(1, Math.max(0, 0.02 + talent * 0.30 + (r() - 0.5) * 0.30));
-    }
+    // Proxy: equal evaluation accuracy for both groups, additive bias for pattern.
+    // Both groups: same talent signal weight, same noise level.
+    // Pattern: gets a +0.35 baseline bonus (looks the part).
+    // The bias is about the prior/anchor, not evaluation ability.
+    var proxyAccuracy = 0.35;
+    var proxyNoise = (r() - 0.5) * 0.45;
+    var proxyBias = group === "pattern" ? 0.35 : 0;
+    var proxy = Math.min(1, Math.max(0, proxyAccuracy * talent + (1 - proxyAccuracy) * r() + proxyBias));
     var noise = r();
     var jx = (r() - 0.5) * 1.6;
     var jy = (r() - 0.5) * 1.6;
