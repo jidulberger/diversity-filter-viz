@@ -423,7 +423,9 @@ function BreakevenChart(props) {
     var el = ref.current;
     if (!el) return;
     var dpr = window.devicePixelRatio || 1;
-    var W = 380, H = 280;
+    var parentW = el.parentElement ? el.parentElement.offsetWidth : 600;
+    var W = Math.min(680, Math.max(360, parentW));
+    var H = Math.round(W * 0.5);
     el.width = W * dpr;
     el.height = H * dpr;
     el.style.width = W + "px";
@@ -629,7 +631,9 @@ function MethodViz(props) {
     var el = ref.current;
     if (!el) return;
     var dpr = window.devicePixelRatio || 1;
-    var W = 640, H = 360;
+    var parentW = el.parentElement ? el.parentElement.offsetWidth : 640;
+    var W = Math.min(960, Math.max(400, parentW));
+    var H = Math.round(W * 0.56);
     el.width = W * dpr;
     el.height = H * dpr;
     el.style.width = W + "px";
@@ -1032,15 +1036,15 @@ function App() {
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 6, fontFamily: hand, lineHeight: 1.2 }}>
         {"You can\u2019t optimize for two things at once."}
       </h1>
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
-        <div style={{ flex: "1 1 280px", maxWidth: 420 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 28, alignItems: "start", marginBottom: 8 }}>
+        <div>
           <p style={{ fontSize: 14, color: "#555", marginBottom: 10, lineHeight: 1.7 }}>
             {"If you\u2019re selecting for quality, adding a second objective can only dilute the first. Paul Graham makes this case in "}
             <em>{"The Origins of Wokeness"}</em>
             <sup><a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6", textDecoration: "none" }}>{"1"}</a></sup>
             {": diversity and quality are different objectives, so optimizing for one costs the other. He\u2019s right \u2014 in principle. Here are 80 candidates with two independent attributes. Drag the slider and watch:"}
           </p>
-          <div style={{ maxWidth: 260, marginBottom: 6 }}>
+          <div style={{ maxWidth: 280, marginBottom: 6 }}>
             <input type="range" min="0" max="1" step="0.02" value={paretoW}
               onChange={function(e) { setParetoW(+e.target.value); }}
               style={{ width: "100%", accentColor: "#2a2a2a" }} />
@@ -1053,7 +1057,7 @@ function App() {
             {"As you optimize for B, your average A drops. You can\u2019t have both. This is the principle Graham is invoking. It\u2019s correct."}
           </p>
         </div>
-        <div style={{ flex: "0 0 auto" }}>
+        <div>
           <ParetoScatter weight={paretoW} />
         </div>
       </div>
@@ -1078,8 +1082,8 @@ function App() {
       </div>
 
       {/* Assumption sliders + breakeven chart */}
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 24 }}>
-        <div style={{ flex: "1 1 200px", maxWidth: 260 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 28, alignItems: "start", marginBottom: 24 }}>
+        <div>
           <div style={{ fontSize: 15, fontWeight: 600, fontFamily: hand, marginBottom: 6 }}>
             {"Your assumptions"}
           </div>
@@ -1117,7 +1121,7 @@ function App() {
             <div>{"\u2022 Diverse VC funds outperform (Gompers & Wang)"}</div>
           </div>
         </div>
-        <div style={{ flex: "0 0 auto" }}>
+        <div>
           <BreakevenChart points={breakevenData} />
         </div>
       </div>
