@@ -4,10 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>When Does Diversity Help Quality?</title>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #faf9f6; color: #1a1a1a; }
+  body { background: #f5f3ed; color: #2a2a2a; }
+  input[type=range] { height: 4px; }
 </style>
 </head>
 <body>
@@ -29,7 +30,7 @@ function seededRand(seed) {
   };
 }
 
-var N = 120;
+var N = 100;
 function makePool() {
   var r = seededRand(42);
   var arr = [];
@@ -37,24 +38,46 @@ function makePool() {
     var group = r() < 0.22 ? "pattern" : "rest";
     var t1 = r(), t2 = r();
     var talent = Math.min(1, Math.max(0, t1 * 0.5 + t2 * 0.5));
+    // Graham's world: pattern group genuinely better, with real variance
     var grahamTalent;
     if (group === "pattern") {
-      grahamTalent = Math.min(1, Math.max(0, 0.55 + t1 * 0.25 + t2 * 0.25));
+      grahamTalent = Math.min(1, Math.max(0, 0.50 + t1 * 0.25 + t2 * 0.25 + (r() - 0.5) * 0.12));
     } else {
-      grahamTalent = Math.min(1, Math.max(0, 0.05 + t1 * 0.32 + t2 * 0.32));
+      grahamTalent = Math.min(1, Math.max(0, 0.05 + t1 * 0.32 + t2 * 0.32 + (r() - 0.5) * 0.10));
     }
+    // Graham's signal: a noisy measurement of grahamTalent (good but not perfect)
+    var grahamSignal = Math.min(1, Math.max(0, grahamTalent + (r() - 0.5) * 0.28));
+    // Proxy: YC-like filter. Has real signal for both groups, but
+    // stronger for pattern (legible backgrounds, known anchors) than
+    // non-traditional (fewer reference points, noisier evaluation).
+    // Pattern: high baseline (pattern-match bonus) + strong talent signal
+    // Non-trad: no baseline bonus + moderate talent signal + more noise
     var proxy;
     if (group === "pattern") {
-      proxy = Math.min(1, Math.max(0, 0.58 + talent * 0.08 + (r() - 0.5) * 0.22));
+      proxy = Math.min(1, Math.max(0, 0.40 + talent * 0.40 + (r() - 0.5) * 0.15));
     } else {
-      proxy = Math.min(1, Math.max(0, 0.05 + talent * 0.42 + (r() - 0.5) * 0.22));
+      proxy = Math.min(1, Math.max(0, 0.02 + talent * 0.30 + (r() - 0.5) * 0.30));
     }
     var noise = r();
-    arr.push({ id: id, group: group, talent: talent, grahamTalent: grahamTalent, proxy: proxy, noise: noise });
+    var jx = (r() - 0.5) * 1.6;
+    var jy = (r() - 0.5) * 1.6;
+    arr.push({ id: id, group: group, talent: talent, grahamTalent: grahamTalent, grahamSignal: grahamSignal, proxy: proxy, noise: noise, jx: jx, jy: jy });
   }
   return arr;
 }
 var POOL = makePool();
+
+// Shuffled order for pre-filter display
+var SHUFFLED = (function() {
+  var r = seededRand(99);
+  var indices = [];
+  for (var i = 0; i < N; i++) indices.push(i);
+  for (var i = N - 1; i > 0; i--) {
+    var j = Math.floor(r() * (i + 1));
+    var tmp = indices[i]; indices[i] = indices[j]; indices[j] = tmp;
+  }
+  return indices;
+})();
 
 function selectBlended(pool, signal, rate, divWeight) {
   var n = Math.floor(pool.length * rate);
@@ -88,10 +111,9 @@ function selectBlended(pool, signal, rate, divWeight) {
   return ids;
 }
 
-function topMissed(ids, pool, truthField) {
-  var field = truthField || "talent";
-  var n25 = Math.floor(pool.length * 0.25);
-  var top = pool.slice().sort(function(a, b) { return b[field] - a[field]; }).slice(0, n25);
+function topMissed(ids, pool, truthField, rate) {
+  var nTop = Math.floor(pool.length * rate);
+  var top = pool.slice().sort(function(a, b) { return b[truthField] - a[truthField]; }).slice(0, nTop);
   return top.filter(function(c) { return !ids.has(c.id); });
 }
 
@@ -103,50 +125,83 @@ var WORLDS = [
   {
     id: "graham",
     name: "Graham\u2019s World",
-    signal: "grahamTalent",
+    signal: "grahamSignal",
     truth: "grahamTalent",
-    subtitle: "Quality measurable. Pattern group genuinely better.",
+    subtitle: "Quality is roughly measurable. The pattern group \u2014 Ivy-educated, ex-FAANG, technical \u2014 genuinely has higher average ability in this world. Your filter works, imperfectly. This is the world Paul Graham\u2019s argument assumes you live in.",
   },
   {
     id: "biased",
     name: "Pattern-Match World",
     signal: "proxy",
     truth: "talent",
-    subtitle: "Quality unmeasurable. Proxy rewards the pattern, blind to everyone else.",
+    subtitle: "Your filter has some real signal for everyone \u2014 but it\u2019s much better at reading pattern candidates (legible backgrounds, known reference points) than non-traditional ones (fewer anchors, more noise). On top of that, pattern candidates get a baseline bonus for looking the part. The filter works, unevenly.",
   },
   {
     id: "random",
     name: "Random Filter",
     signal: "noise",
     truth: "talent",
-    subtitle: "Control. Filter is pure noise.",
+    subtitle: "Control group. Your filter is pure noise \u2014 zero correlation with talent. Neither the filter nor a diversity constraint does anything meaningful. This is what it looks like when there\u2019s no signal to correct or preserve.",
   },
 ];
 
-// Small multiple: one talent grid per world
+function sketchCircle(ctx, cx, cy, r, jitterAmt) {
+  var j = jitterAmt || 0.3;
+  ctx.beginPath();
+  for (var i = 0; i <= 24; i++) {
+    var a = (i / 24) * Math.PI * 2;
+    var rr = r + (Math.sin(a * 7.3 + cx) * r * j);
+    var px = cx + Math.cos(a) * rr;
+    var py = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function sketchLine(ctx, x1, y1, x2, y2) {
+  ctx.beginPath();
+  for (var i = 0; i <= 8; i++) {
+    var t = i / 8;
+    var px = x1 + (x2 - x1) * t + (Math.sin(t * 13.7) * 0.8);
+    var py = y1 + (y2 - y1) * t + (Math.cos(t * 11.3) * 0.8);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+}
+
 function TalentGrid(props) {
   var selected = props.selected;
   var truthField = props.truthField;
+  var rate = props.rate;
+  var filterAnim = props.filterAnim; // 0 = unfiltered, 1 = fully filtered
   var ref = useRef(null);
   var sorted = sortedByTruth(POOL, truthField);
-  var topCutoffIdx = Math.floor(sorted.length * 0.25) - 1;
-  var topCutoff = topCutoffIdx >= 0 ? sorted[topCutoffIdx][truthField] : 0;
-  var missed = topMissed(selected, POOL, truthField);
+  var nSelected = Math.floor(POOL.length * rate);
+  var missed = topMissed(selected, POOL, truthField, rate);
   var missedIds = {};
   for (var m = 0; m < missed.length; m++) missedIds[missed[m].id] = true;
+
+  // Build position maps: shuffled positions and sorted positions
+  var sortedIdOrder = {};
+  for (var si = 0; si < sorted.length; si++) sortedIdOrder[sorted[si].id] = si;
+  var shuffledIdOrder = {};
+  for (var shi = 0; shi < SHUFFLED.length; shi++) shuffledIdOrder[POOL[SHUFFLED[shi]].id] = shi;
 
   useEffect(function() {
     var el = ref.current;
     if (!el) return;
     var dpr = window.devicePixelRatio || 1;
-    var W = props.width || 320;
-    var cols = 12;
-    var rows = Math.ceil(sorted.length / cols);
-    var pad = 8;
+    var W = props.width || 300;
+    var cols = 10;
+    var rows = Math.ceil(N / cols);
+    var pad = 10;
     var gapX = (W - pad * 2) / cols;
     var gapY = gapX;
-    var H = pad + rows * gapY + 4;
-    var dotR = gapX * 0.38;
+    var cutoffRow = Math.ceil(nSelected / cols);
+    var gapSize = 14;
+    var H = pad + rows * gapY + gapSize + 28;
+    var dotR = gapX * 0.36;
 
     el.width = W * dpr;
     el.height = H * dpr;
@@ -156,110 +211,798 @@ function TalentGrid(props) {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
-    // Top quartile bracket — thin line
-    var topCount = Math.floor(sorted.length * 0.25);
-    var bracketRows = Math.ceil(topCount / cols);
-    var lastRowCols = topCount % cols || cols;
-    // just a subtle bottom border under the top quartile
-    var lineY = pad + bracketRows * gapY - gapY * 0.12;
-    ctx.strokeStyle = "rgba(0,0,0,0.10)";
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(pad, lineY);
-    ctx.lineTo(W - pad, lineY);
-    ctx.stroke();
+    // Cutoff line (only when filtered)
+    if (filterAnim > 0.1) {
+      var lineY = pad + cutoffRow * gapY + 2;
+      ctx.globalAlpha = Math.min(1, (filterAnim - 0.5) * 2);
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 1.2;
+      sketchLine(ctx, pad - 2, lineY, W - pad + 2, lineY);
+      ctx.stroke();
+      ctx.fillStyle = "#888";
+      ctx.font = "11px Caveat, cursive";
+      ctx.textAlign = "right";
+      ctx.fillText("top " + Math.round(rate * 100) + "% \u2191", W - pad + 2, lineY + 13);
+      ctx.globalAlpha = 1;
+    }
 
-    // label
-    ctx.fillStyle = "#999";
-    ctx.font = "8px DM Mono, monospace";
-    ctx.textAlign = "right";
-    ctx.fillText("top quartile \u2191", W - pad, lineY + 10);
+    for (var i = 0; i < POOL.length; i++) {
+      var c = POOL[i];
 
-    for (var i = 0; i < sorted.length; i++) {
-      var c = sorted[i];
-      var col = i % cols;
-      var row = Math.floor(i / cols);
-      var cx = pad + col * gapX + gapX / 2;
-      var cy = pad + row * gapY + gapY / 2;
+      // Shuffled position
+      var shIdx = shuffledIdOrder[c.id];
+      var shCol = shIdx % cols;
+      var shRow = Math.floor(shIdx / cols);
+      var shX = pad + shCol * gapX + gapX / 2;
+      var shY = pad + shRow * gapY + gapY / 2;
+
+      // Sorted position
+      var soIdx = sortedIdOrder[c.id];
+      var soCol = soIdx % cols;
+      var soRow = Math.floor(soIdx / cols);
+      var soExtraY = (soRow >= cutoffRow) ? gapSize + 14 : 0;
+      var soX = pad + soCol * gapX + gapX / 2;
+      var soY = pad + soRow * gapY + gapY / 2 + soExtraY;
+
+      // Interpolate position
+      var ease = filterAnim < 1 ? (filterAnim * filterAnim * (3 - 2 * filterAnim)) : 1; // smoothstep
+      var cx = shX + (soX - shX) * ease + c.jx * ease;
+      var cy = shY + (soY - shY) * ease + c.jy * ease;
+
       var isSelected = selected.has(c.id);
       var isMissed = missedIds[c.id];
-      var isTop = c[truthField] >= topCutoff;
+      var isAboveCut = soIdx < nSelected;
 
-      if (isMissed) {
-        // Red open circle + X — rejected talent
-        ctx.beginPath();
-        ctx.arc(cx, cy, dotR * 0.65, 0, Math.PI * 2);
-        ctx.strokeStyle = "#c0392b";
+      // Before filter applied: everyone looks the same
+      var selectionAlpha = Math.max(0, Math.min(1, (filterAnim - 0.4) / 0.5));
+
+      // All dots are full size. Group identity always visible.
+      // Selected = filled solid. Not selected = outlined/hollow.
+      var isFiltered = filterAnim > 0.4;
+      var selAlpha = Math.max(0, Math.min(1, (filterAnim - 0.4) / 0.5));
+
+      if (isMissed && isFiltered) {
+        // Draw group shape (hollow) then red X on top
+        sketchCircle(ctx, cx, cy, dotR, 0.12);
+        if (c.group === "pattern") {
+          ctx.strokeStyle = "rgba(40,116,166,0.5)";
+        } else {
+          ctx.strokeStyle = "rgba(42,42,42,0.35)";
+        }
         ctx.lineWidth = 1.5;
         ctx.stroke();
+        // Red X
+        ctx.globalAlpha = selAlpha;
         ctx.beginPath();
-        ctx.moveTo(cx - dotR * 0.32, cy - dotR * 0.32);
-        ctx.lineTo(cx + dotR * 0.32, cy + dotR * 0.32);
-        ctx.moveTo(cx + dotR * 0.32, cy - dotR * 0.32);
-        ctx.lineTo(cx - dotR * 0.32, cy + dotR * 0.32);
+        sketchLine(ctx, cx - dotR * 0.45, cy - dotR * 0.45, cx + dotR * 0.45, cy + dotR * 0.45);
         ctx.strokeStyle = "#c0392b";
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 2;
         ctx.stroke();
-      } else if (isSelected) {
         ctx.beginPath();
-        ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
-        if (c.group === "pattern") {
-          ctx.fillStyle = "#2980b9";
-        } else {
-          ctx.fillStyle = "#1a1a1a";
-        }
-        ctx.fill();
-        if (c.group === "pattern") {
-          // small inner ring to distinguish
-          ctx.beginPath();
-          ctx.arc(cx, cy, dotR * 0.4, 0, Math.PI * 2);
-          ctx.fillStyle = "#faf9f6";
+        sketchLine(ctx, cx + dotR * 0.45, cy - dotR * 0.45, cx - dotR * 0.45, cy + dotR * 0.45);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (c.group === "pattern") {
+        sketchCircle(ctx, cx, cy, dotR, 0.12);
+        if (!isFiltered) {
+          // Pre-filter: medium fill
+          ctx.fillStyle = "rgba(40,116,166,0.45)";
           ctx.fill();
+        } else if (isSelected) {
+          // Selected: solid fill
+          ctx.fillStyle = "#2874a6";
+          ctx.fill();
+          ctx.strokeStyle = "#1a5276";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          // Not selected: hollow outline
+          ctx.strokeStyle = "rgba(40,116,166,0.45)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
         }
-      } else {
-        ctx.beginPath();
-        ctx.arc(cx, cy, dotR * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = isTop ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.06)";
+        // Donut hole (always, to identify pattern)
+        sketchCircle(ctx, cx, cy, dotR * 0.35, 0.15);
+        ctx.fillStyle = "#f5f3ed";
         ctx.fill();
+      } else {
+        // Non-traditional
+        sketchCircle(ctx, cx, cy, dotR, 0.15);
+        if (!isFiltered) {
+          // Pre-filter: medium fill
+          ctx.fillStyle = "rgba(42,42,42,0.25)";
+          ctx.fill();
+        } else if (isSelected) {
+          // Selected: solid fill
+          ctx.fillStyle = "rgba(42,42,42,0.85)";
+          ctx.fill();
+        } else {
+          // Not selected: hollow outline
+          ctx.strokeStyle = "rgba(42,42,42,0.3)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
       }
     }
-  }, [selected, missed.length, props.width]);
+  }, [selected, missed.length, props.width, rate, filterAnim]);
 
   return React.createElement("canvas", { ref: ref, style: { display: "block" } });
 }
 
-function computeStats(selected, truth) {
+// Breakeven chart model:
+// - Equal evaluation accuracy for both groups
+// - Bias is purely additive (baseline/prior, not eval ability)
+// - Heavy-tailed talent: few stars, many mediocre
+// - Pool exhaustion drives the diversity advantage
+function makeProxy(pool, accuracy, biasMag, realEdge, seed) {
+  var r = seededRand(seed);
+  var result = [];
+  for (var i = 0; i < pool.length; i++) {
+    var c = pool[i];
+    var trueTalent = Math.min(1, c.talent + (c.group === "pattern" ? realEdge : 0));
+    // Bias fades slowly — unconscious anchoring persists even as evaluation improves
+    var fakeBias = c.group === "pattern" ? biasMag * Math.pow(Math.max(0, 1 - accuracy), 0.3) : 0;
+    var signal = accuracy * trueTalent + (1 - accuracy) * r() + fakeBias;
+    result.push({ id: c.id, group: c.group, talent: trueTalent, proxy: signal });
+  }
+  return result;
+}
+
+function avgTalentOfSelected(pool, signal, rate, divWeight) {
+  var n = Math.floor(pool.length * rate);
+  if (n < 1) return 0;
+  var pat = pool.filter(function(c) { return c.group === "pattern"; });
+  var rest = pool.filter(function(c) { return c.group === "rest"; });
+  var patSorted = pat.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var restSorted = rest.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var meritSorted = pool.slice().sort(function(a, b) { return b[signal] - a[signal]; });
+  var meritRestCount = 0;
+  for (var i = 0; i < n; i++) {
+    if (meritSorted[i].group === "rest") meritRestCount++;
+  }
+  var propRestCount = Math.round(n * rest.length / pool.length);
+  var blendedRestCount = Math.round(meritRestCount + divWeight * (propRestCount - meritRestCount));
+  blendedRestCount = Math.max(0, Math.min(n, blendedRestCount));
+  var blendedPatCount = n - blendedRestCount;
+  blendedPatCount = Math.min(blendedPatCount, patSorted.length);
+  blendedRestCount = Math.min(blendedRestCount, restSorted.length);
+  var total = 0;
+  var count = 0;
+  for (var p = 0; p < blendedPatCount; p++) { total += patSorted[p].talent; count++; }
+  for (var r2 = 0; r2 < blendedRestCount; r2++) { total += restSorted[r2].talent; count++; }
+  return count > 0 ? total / count : 0;
+}
+
+// Precompute breakeven data (sweep accuracy 0-1)
+var BREAKEVEN_STEPS = 40;
+
+// Heavy-tailed talent: most people are mediocre, a few are exceptional.
+// Uses a power-law-ish distribution — closer to how startup value is distributed.
+function makeFreshPool(seed) {
+  var r = seededRand(seed);
+  var arr = [];
+  for (var id = 0; id < 100; id++) {
+    var group = r() < 0.22 ? "pattern" : "rest";
+    // Power-law-ish: talent = r^0.5 gives right-skew (more mass at low end)
+    // Then r^2 for the base gives very heavy tail: few stars, many mediocre
+    var u = r();
+    var talent = Math.pow(u, 2); // heavy tail: median ~0.25, most mediocre, few stars
+    arr.push({ id: id, group: group, talent: talent });
+  }
+  return arr;
+}
+
+var ACC_MIN = -0.3, ACC_MAX = 1.0;
+function computeBreakeven(rate, biasMag, realEdge) {
+  var points = [];
+  var nSeeds = 16;
+  for (var step = 0; step <= BREAKEVEN_STEPS; step++) {
+    var accuracy = ACC_MIN + (ACC_MAX - ACC_MIN) * step / BREAKEVEN_STEPS;
+    var pureSum = 0, divSum = 0;
+    for (var s = 0; s < nSeeds; s++) {
+      var freshPool = makeFreshPool(300 + s * 7);
+      var proxied = makeProxy(freshPool, accuracy, biasMag, realEdge, 500 + step * 100 + s);
+      pureSum += avgTalentOfSelected(proxied, "proxy", rate, 0);
+      divSum += avgTalentOfSelected(proxied, "proxy", rate, 1);
+    }
+    points.push({
+      accuracy: accuracy,
+      pure: pureSum / nSeeds,
+      div: divSum / nSeeds,
+    });
+  }
+  return points;
+}
+
+function BreakevenChart(props) {
+  var points = props.points;
+  var ref = useRef(null);
+
+  useEffect(function() {
+    var el = ref.current;
+    if (!el) return;
+    var dpr = window.devicePixelRatio || 1;
+    var W = 380, H = 280;
+    el.width = W * dpr;
+    el.height = H * dpr;
+    el.style.width = W + "px";
+    el.style.height = H + "px";
+    var ctx = el.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    var padL = 48, padR = 80, padT = 18, padB = 44;
+    var cW = W - padL - padR;
+    var cH = H - padT - padB;
+
+    // Find y range
+    var yMin = 1, yMax = 0;
+    for (var i = 0; i < points.length; i++) {
+      yMin = Math.min(yMin, points[i].pure, points[i].div);
+      yMax = Math.max(yMax, points[i].pure, points[i].div);
+    }
+    var yPad = (yMax - yMin) * 0.18;
+    yMin = Math.max(0, yMin - yPad);
+    yMax = Math.min(1, yMax + yPad);
+
+    function xPos(accuracy) { return padL + (accuracy - ACC_MIN) / (ACC_MAX - ACC_MIN) * cW; }
+    function yPos(val) { return padT + (1 - (val - yMin) / (yMax - yMin)) * cH; }
+
+    // Grid lines
+    ctx.strokeStyle = "rgba(0,0,0,0.06)";
+    ctx.lineWidth = 0.5;
+    for (var g = 0; g <= 4; g++) {
+      var gv = yMin + (yMax - yMin) * g / 4;
+      var gy = yPos(gv);
+      ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + cW, gy); ctx.stroke();
+      ctx.fillStyle = "#aaa";
+      ctx.font = "9px DM Mono, monospace";
+      ctx.textAlign = "right";
+      ctx.fillText((gv * 100).toFixed(0) + "%", padL - 6, gy + 3);
+    }
+
+    // Shade gap between lines — green where div wins, red where pure wins
+    for (var i = 0; i < points.length - 1; i++) {
+      var x1 = xPos(points[i].accuracy), x2 = xPos(points[i+1].accuracy);
+      var d1 = yPos(points[i].div), d2 = yPos(points[i+1].div);
+      var p1 = yPos(points[i].pure), p2 = yPos(points[i+1].pure);
+      var divWins = points[i].div > points[i].pure;
+      ctx.fillStyle = divWins ? "rgba(39,174,96,0.10)" : "rgba(192,57,43,0.07)";
+      ctx.beginPath();
+      ctx.moveTo(x1, d1); ctx.lineTo(x2, d2);
+      ctx.lineTo(x2, p2); ctx.lineTo(x1, p1);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Label the max diversity advantage
+    ctx.font = "13px Caveat, cursive";
+    ctx.textAlign = "center";
+    var maxGap = 0, maxGapIdx = 0;
+    for (var i = 0; i < points.length; i++) {
+      var gap = points[i].div - points[i].pure;
+      if (gap > maxGap) { maxGap = gap; maxGapIdx = i; }
+    }
+    if (maxGap > 0.01) {
+      var labelX = xPos(points[maxGapIdx].accuracy);
+      var labelY = (yPos(points[maxGapIdx].div) + yPos(points[maxGapIdx].pure)) / 2;
+      ctx.fillStyle = "rgba(39,174,96,0.6)";
+      ctx.fillText("diversity", labelX, labelY - 5);
+      ctx.fillText("advantage", labelX, labelY + 9);
+    }
+
+    // Pure filter line
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var i = 0; i < points.length; i++) {
+      var px = xPos(points[i].accuracy);
+      var py = yPos(points[i].pure);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Diversity line
+    ctx.strokeStyle = "#27ae60";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var i = 0; i < points.length; i++) {
+      var px = xPos(points[i].accuracy);
+      var py = yPos(points[i].div);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Direct line labels on right
+    var lastPure = points[points.length - 1];
+    var lastDiv = points[points.length - 1];
+    var pureY = yPos(lastPure.pure);
+    var divY = yPos(lastDiv.div);
+    // Ensure they don't overlap
+    if (Math.abs(pureY - divY) < 16) {
+      pureY = (pureY + divY) / 2 - 9;
+      divY = pureY + 18;
+    }
+
+    ctx.font = "12px Inter, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText("pure filter", padL + cW + 8, pureY + 4);
+    ctx.fillStyle = "#27ae60";
+    ctx.fillText("filter +", padL + cW + 8, divY - 2);
+    ctx.fillText("diversity", padL + cW + 8, divY + 11);
+
+    // X axis label
+    ctx.fillStyle = "#888";
+    ctx.font = "10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("\u2190 inversely correlated          filter accuracy          correlated \u2192", padL + cW / 2, H - 4);
+    // X axis ticks
+    var tickVals = [-0.3, -0.15, 0, 0.25, 0.5, 0.75, 1.0];
+    for (var ti = 0; ti < tickVals.length; ti++) {
+      var xv = tickVals[ti];
+      ctx.fillStyle = xv < 0 ? "#c0392b" : "#aaa";
+      ctx.font = "9px DM Mono, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText((xv >= 0 ? "" : "") + Math.round(xv * 100) + "%", xPos(xv), padT + cH + 14);
+    }
+    // Zero line
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(xPos(0), padT);
+    ctx.lineTo(xPos(0), padT + cH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#999";
+    ctx.font = "10px Caveat, cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("no signal", xPos(0), padT - 4);
+
+    // Y axis label
+    ctx.save();
+    ctx.translate(10, padT + cH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = "#888";
+    ctx.font = "10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("avg talent selected \u2192", 0, 0);
+    ctx.restore();
+
+  }, [points]);
+
+  return React.createElement("canvas", { ref: ref, style: { display: "block" } });
+}
+
+// Methodology visualization: shows across-group vs within-group sorting
+function MethodViz(props) {
+  var splitAnim = props.splitAnim; // 0 = across-group, 1 = within-group (split)
+  var rate = props.rate;
+  var ref = useRef(null);
+
+  // Sort by proxy (Pattern-Match World)
+  var byProxy = POOL.slice().sort(function(a, b) { return b.proxy - a.proxy; });
+  var byTruth = POOL.slice().sort(function(a, b) { return b.talent - a.talent; });
+  var nSel = Math.floor(N * rate);
+
+  // Across-group: top nSel by proxy
+  var acrossIds = new Set();
+  for (var i = 0; i < nSel; i++) acrossIds.add(byProxy[i].id);
+
+  // Within-group: proportional
+  var pat = POOL.filter(function(c) { return c.group === "pattern"; });
+  var rest = POOL.filter(function(c) { return c.group === "rest"; });
+  var patByProxy = pat.slice().sort(function(a, b) { return b.proxy - a.proxy; });
+  var restByProxy = rest.slice().sort(function(a, b) { return b.proxy - a.proxy; });
+  var nPat = Math.round(nSel * pat.length / N);
+  var nRest = nSel - nPat;
+  var withinIds = new Set();
+  for (var i = 0; i < nPat; i++) withinIds.add(patByProxy[i].id);
+  for (var i = 0; i < nRest; i++) withinIds.add(restByProxy[i].id);
+
+  // True top talent for red X detection
+  var trueTopIds = new Set();
+  for (var i = 0; i < nSel; i++) trueTopIds.add(byTruth[i].id);
+
+  // Position maps
+  // Across: single 10-col grid sorted by proxy
+  var acrossOrder = {};
+  for (var i = 0; i < byProxy.length; i++) acrossOrder[byProxy[i].id] = i;
+
+  // Within: pattern on left (3 cols), non-trad on right (7 cols)
+  var patCols = 3, restCols = 7;
+  var withinPos = {};
+  for (var i = 0; i < patByProxy.length; i++) {
+    var col = i % patCols;
+    var row = Math.floor(i / patCols);
+    withinPos[patByProxy[i].id] = { col: col, row: row };
+  }
+  for (var i = 0; i < restByProxy.length; i++) {
+    var col = patCols + (i % restCols);
+    var row = Math.floor(i / restCols);
+    withinPos[restByProxy[i].id] = { col: col, row: row };
+  }
+
+  useEffect(function() {
+    var el = ref.current;
+    if (!el) return;
+    var dpr = window.devicePixelRatio || 1;
+    var W = 640, H = 360;
+    el.width = W * dpr;
+    el.height = H * dpr;
+    el.style.width = W + "px";
+    el.style.height = H + "px";
+    var ctx = el.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    var cols = 10;
+    var pad = 12;
+    var gapX = (W - pad * 2 - 20) / cols; // 20px for split gap
+    var gapY = gapX * 0.95;
+    var dotR = gapX * 0.34;
+    var offY = 30;
+
+    var ease = splitAnim < 1 ? (splitAnim * splitAnim * (3 - 2 * splitAnim)) : 1;
+
+    // Cutoff lines
+    // Across: single line after nSel items
+    var acrossCutRow = Math.ceil(nSel / cols);
+    var acrossLineY = offY + acrossCutRow * gapY + 1;
+
+    // Within: two separate cutoffs
+    var patCutRow = Math.ceil(nPat / patCols);
+    var restCutRow = Math.ceil(nRest / restCols);
+    var withinPatLineY = offY + patCutRow * gapY + 1;
+    var withinRestLineY = offY + restCutRow * gapY + 1;
+
+    // Draw split divider line when split
+    if (ease > 0.1) {
+      var divX = pad + patCols * gapX + 8;
+      ctx.globalAlpha = ease * 0.3;
+      ctx.strokeStyle = "#2a2a2a";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(divX, offY - 5);
+      ctx.lineTo(divX, H - 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Group labels
+      ctx.globalAlpha = ease;
+      ctx.font = "13px Caveat, cursive";
+      ctx.fillStyle = "#2874a6";
+      ctx.textAlign = "center";
+      ctx.fillText("pattern (" + pat.length + ")", pad + patCols * gapX / 2, offY - 10);
+      ctx.fillStyle = "#555";
+      ctx.fillText("non-traditional (" + rest.length + ")", pad + patCols * gapX + 16 + restCols * gapX / 2, offY - 10);
+      ctx.globalAlpha = 1;
+    }
+
+    // Across-group cutoff (fades out as split)
+    if (ease < 0.9) {
+      ctx.globalAlpha = 1 - ease;
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 1.2;
+      sketchLine(ctx, pad, acrossLineY, W - pad, acrossLineY);
+      ctx.stroke();
+      ctx.fillStyle = "#888";
+      ctx.font = "11px Caveat, cursive";
+      ctx.textAlign = "right";
+      ctx.fillText("top " + nSel + " by proxy score \u2191", W - pad, acrossLineY + 13);
+      ctx.globalAlpha = 1;
+    }
+
+    // Within-group cutoffs (fade in with split)
+    if (ease > 0.1) {
+      ctx.globalAlpha = ease;
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 1.2;
+      // Pattern cutoff
+      sketchLine(ctx, pad - 2, withinPatLineY, pad + patCols * gapX + 2, withinPatLineY);
+      ctx.stroke();
+      ctx.fillStyle = "#888";
+      ctx.font = "10px Caveat, cursive";
+      ctx.textAlign = "left";
+      ctx.fillText("top " + nPat, pad, withinPatLineY + 12);
+      // Rest cutoff
+      ctx.beginPath();
+      sketchLine(ctx, pad + patCols * gapX + 14, withinRestLineY, W - pad + 2, withinRestLineY);
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.stroke();
+      ctx.textAlign = "left";
+      ctx.fillText("top " + nRest, pad + patCols * gapX + 16, withinRestLineY + 12);
+      ctx.globalAlpha = 1;
+    }
+
+    // Draw each candidate
+    for (var i = 0; i < POOL.length; i++) {
+      var c = POOL[i];
+
+      // Across position
+      var aIdx = acrossOrder[c.id];
+      var aCol = aIdx % cols;
+      var aRow = Math.floor(aIdx / cols);
+      var aX = pad + aCol * gapX + gapX / 2;
+      var aY = offY + aRow * gapY + gapY / 2;
+
+      // Within position
+      var wPos = withinPos[c.id];
+      var splitGap = wPos.col >= patCols ? 16 : 0;
+      var wX = pad + wPos.col * gapX + gapX / 2 + splitGap;
+      var wY = offY + wPos.row * gapY + gapY / 2;
+
+      // Interpolate
+      var cx = aX + (wX - aX) * ease + c.jx;
+      var cy = aY + (wY - aY) * ease + c.jy;
+
+      // Which selection set to use?
+      var selSet = ease < 0.5 ? acrossIds : withinIds;
+      var isSelected = selSet.has(c.id);
+      var isTrulyTop = trueTopIds.has(c.id);
+      var isMissed = isTrulyTop && !isSelected;
+
+      // Draw
+      if (isMissed) {
+        sketchCircle(ctx, cx, cy, dotR, 0.12);
+        if (c.group === "pattern") {
+          ctx.strokeStyle = "rgba(40,116,166,0.4)";
+        } else {
+          ctx.strokeStyle = "rgba(42,42,42,0.25)";
+        }
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Red X
+        ctx.beginPath();
+        sketchLine(ctx, cx - dotR * 0.45, cy - dotR * 0.45, cx + dotR * 0.45, cy + dotR * 0.45);
+        ctx.strokeStyle = "#c0392b";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        sketchLine(ctx, cx + dotR * 0.45, cy - dotR * 0.45, cx - dotR * 0.45, cy + dotR * 0.45);
+        ctx.stroke();
+      } else if (c.group === "pattern") {
+        sketchCircle(ctx, cx, cy, dotR, 0.12);
+        if (isSelected) {
+          ctx.fillStyle = "#2874a6";
+          ctx.fill();
+          ctx.strokeStyle = "#1a5276";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = "rgba(40,116,166,0.4)";
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+        }
+        sketchCircle(ctx, cx, cy, dotR * 0.35, 0.15);
+        ctx.fillStyle = "#f5f3ed";
+        ctx.fill();
+      } else {
+        sketchCircle(ctx, cx, cy, dotR, 0.15);
+        if (isSelected) {
+          ctx.fillStyle = "rgba(42,42,42,0.85)";
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = "rgba(42,42,42,0.25)";
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Labels at top when in across mode
+    if (ease < 0.5) {
+      ctx.globalAlpha = 1 - ease * 2;
+      ctx.font = "11px Caveat, cursive";
+      ctx.fillStyle = "#888";
+      ctx.textAlign = "left";
+      ctx.fillText("\u2190 highest proxy score", pad, offY - 10);
+      ctx.globalAlpha = 1;
+    }
+
+  }, [splitAnim, rate]);
+
+  return React.createElement("canvas", { ref: ref, style: { display: "block", maxWidth: "100%" } });
+}
+
+// Generic two-objective tradeoff scatter. 100 dots with random A and B.
+// Slider blends between "optimize A" and "optimize B". Selected dots shift.
+var PARETO_DOTS = (function() {
+  var r = seededRand(77);
+  var arr = [];
+  for (var i = 0; i < 80; i++) {
+    arr.push({ a: r(), b: r() });
+  }
+  return arr;
+})();
+
+function ParetoScatter(props) {
+  var weight = props.weight; // 0 = optimize A, 1 = optimize B
+  var ref = useRef(null);
+
+  useEffect(function() {
+    var el = ref.current;
+    if (!el) return;
+    var dpr = window.devicePixelRatio || 1;
+    var W = 260, H = 260;
+    el.width = W * dpr; el.height = H * dpr;
+    el.style.width = W + "px"; el.style.height = H + "px";
+    var ctx = el.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    var pad = 32, sz = W - pad * 2;
+
+    // Axes
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, pad); ctx.lineTo(pad, pad + sz); ctx.lineTo(pad + sz, pad + sz);
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = "#888";
+    ctx.font = "12px Caveat, cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("Objective A \u2192", pad + sz / 2, H - 6);
+    ctx.save();
+    ctx.translate(10, pad + sz / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("Objective B \u2192", 0, 0);
+    ctx.restore();
+
+    // Score each dot by blended objective, select top 20
+    var scored = PARETO_DOTS.map(function(d, i) {
+      return { i: i, a: d.a, b: d.b, score: (1 - weight) * d.a + weight * d.b };
+    });
+    scored.sort(function(a, b) { return b.score - a.score; });
+    var selSet = new Set();
+    for (var i = 0; i < 20; i++) selSet.add(scored[i].i);
+
+    // Compute avg A and B of selected
+    var sumA = 0, sumB = 0;
+    for (var i = 0; i < 20; i++) { sumA += scored[i].a; sumB += scored[i].b; }
+    var avgA = sumA / 20, avgB = sumB / 20;
+
+    // Draw dots
+    for (var i = 0; i < PARETO_DOTS.length; i++) {
+      var d = PARETO_DOTS[i];
+      var cx = pad + d.a * sz;
+      var cy = pad + sz - d.b * sz;
+      var isSel = selSet.has(i);
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, isSel ? 5.5 : 3, 0, Math.PI * 2);
+      if (isSel) {
+        ctx.fillStyle = "#2874a6";
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "rgba(0,0,0,0.08)";
+        ctx.fill();
+      }
+    }
+
+    // Crosshair at avg of selected
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "rgba(40,116,166,0.4)";
+    ctx.lineWidth = 1;
+    var ax = pad + avgA * sz, ay = pad + sz - avgB * sz;
+    ctx.beginPath(); ctx.moveTo(ax, pad); ctx.lineTo(ax, pad + sz); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, ay); ctx.lineTo(pad + sz, ay); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Avg label
+    ctx.fillStyle = "#2874a6";
+    ctx.font = "11px DM Mono, monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("A=" + (avgA * 100).toFixed(0) + "%", ax + 4, pad + sz - 4);
+    ctx.textAlign = "right";
+    ctx.fillText("B=" + (avgB * 100).toFixed(0) + "%", pad + sz, ay - 4);
+
+  }, [weight]);
+
+  return React.createElement("canvas", { ref: ref, style: { display: "block" } });
+}
+
+function computeStats(selected, truth, rate) {
   var selArr = POOL.filter(function(c) { return selected.has(c.id); });
   var avgTalent = selArr.length
     ? selArr.reduce(function(s, c) { return s + c[truth]; }, 0) / selArr.length
     : 0;
-  var missed = topMissed(selected, POOL, truth);
-  var topN = Math.floor(POOL.length * 0.25);
-  var topFound = topN - missed.length;
+  var missed = topMissed(selected, POOL, truth, rate);
+  var nTop = Math.floor(POOL.length * rate);
+  var topFound = nTop - missed.length;
   var patInSel = selArr.filter(function(c) { return c.group === "pattern"; }).length;
+  var patTotal = POOL.filter(function(c) { return c.group === "pattern"; }).length;
+  var restTotal = POOL.length - patTotal;
+  var restInSel = selArr.length - patInSel;
   return {
     avgTalent: avgTalent,
     missed: missed.length,
     topFound: topFound,
-    topN: topN,
+    topN: nTop,
     patShare: selArr.length ? patInSel / selArr.length : 0,
     n: selArr.length,
+    patInSel: patInSel,
+    patNotSel: patTotal - patInSel,
+    patTotal: patTotal,
+    restInSel: restInSel,
+    restNotSel: restTotal - restInSel,
+    restTotal: restTotal,
   };
 }
 
 function App() {
+  var _paretoW = useState(0);
+  var paretoW = _paretoW[0], setParetoW = _paretoW[1];
   var _rate = useState(0.25);
   var rate = _rate[0], setRate = _rate[1];
   var _div = useState(0);
   var divWeight = _div[0], setDiv = _div[1];
+  var _realEdge = useState(0.06);
+  var realEdge = _realEdge[0], setRealEdge = _realEdge[1];
+  var _biasMag = useState(0.40);
+  var biasMag = _biasMag[0], setBiasMag = _biasMag[1];
+  var _filterAnim = useState(0);
+  var filterAnim = _filterAnim[0], setFilterAnim = _filterAnim[1];
+  var _filtered = useState(false);
+  var filtered = _filtered[0], setFiltered = _filtered[1];
+  var animRef = useRef(null);
+  var _splitAnim = useState(0);
+  var splitAnim = _splitAnim[0], setSplitAnim = _splitAnim[1];
+  var _splitMode = useState(false);
+  var splitMode = _splitMode[0], setSplitMode = _splitMode[1];
+  var splitRef = useRef(null);
 
-  // Compute all worlds simultaneously
+  function toggleSplit() {
+    var target = splitMode ? 0 : 1;
+    setSplitMode(!splitMode);
+    var startVal = splitAnim;
+    var start = performance.now();
+    var duration = 900;
+    function tick(now) {
+      var t = Math.min(1, (now - start) / duration);
+      var ease = 1 - Math.pow(1 - t, 3);
+      setSplitAnim(startVal + (target - startVal) * ease);
+      if (t < 1) splitRef.current = requestAnimationFrame(tick);
+    }
+    splitRef.current = requestAnimationFrame(tick);
+  }
+
+  function applyFilter() {
+    if (filtered) {
+      // Reset
+      setFiltered(false);
+      setFilterAnim(0);
+      setDiv(0);
+      return;
+    }
+    setFiltered(true);
+    var start = performance.now();
+    var duration = 1200;
+    function tick(now) {
+      var t = Math.min(1, (now - start) / duration);
+      var ease = 1 - Math.pow(1 - t, 3);
+      setFilterAnim(ease);
+      if (t < 1) animRef.current = requestAnimationFrame(tick);
+    }
+    animRef.current = requestAnimationFrame(tick);
+  }
+  useEffect(function() { return function() { cancelAnimationFrame(animRef.current); }; }, []);
+
+  var breakevenData = useMemo(function() {
+    return computeBreakeven(rate, biasMag, realEdge);
+  }, [rate, biasMag, realEdge]);
+
   var allData = useMemo(function() {
     return WORLDS.map(function(w) {
       var selected = selectBlended(POOL, w.signal, rate, divWeight);
       var baseSelected = selectBlended(POOL, w.signal, rate, 0);
-      var stats = computeStats(selected, w.truth);
-      var baseStats = computeStats(baseSelected, w.truth);
+      var stats = computeStats(selected, w.truth, rate);
+      var baseStats = computeStats(baseSelected, w.truth, rate);
       return {
         world: w,
         selected: selected,
@@ -270,54 +1013,204 @@ function App() {
     });
   }, [rate, divWeight]);
 
-  var serif = "Source Serif 4, Georgia, serif";
+  var hand = "Caveat, cursive";
   var mono = "DM Mono, monospace";
+  var sans = "Inter, -apple-system, sans-serif";
 
   return (
     <div style={{
-      maxWidth: 960, margin: "0 auto",
-      fontFamily: serif,
-      padding: "48px 32px 80px",
+      maxWidth: 980, margin: "0 auto",
+      fontFamily: sans,
+      padding: "44px 28px 80px",
       lineHeight: 1.6,
     }}>
-      {/* Title */}
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>
-        {"Does optimizing for diversity help or hurt quality?"}
+      {/* Section 1: The principle — Graham is right */}
+      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 6, fontFamily: hand, lineHeight: 1.2 }}>
+        {"You can\u2019t optimize for two things at once."}
       </h1>
-      <p style={{ fontSize: 15, color: "#555", marginBottom: 6, maxWidth: 620 }}>
-        {"It depends entirely on whether your filter is measuring quality or pattern-matching. One slider, three worlds, three different answers."}
-      </p>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 32, maxWidth: 620 }}>
-        {"120 founders sorted left-to-right, top-to-bottom by true talent. "}
-        <span style={{ fontFamily: mono, fontSize: 11 }}>
-          {"\u25cf"}{" "}
-        </span>
-        {"dark = selected (everyone else)  "}
-        <span style={{ color: "#2980b9", fontFamily: mono, fontSize: 11 }}>{"\u25ce"}</span>
-        {" blue = selected (the pattern)  "}
-        <span style={{ color: "#c0392b", fontFamily: mono, fontSize: 11 }}>{"\u2717"}</span>
-        {" = high talent, rejected"}
-      </p>
-
-      {/* Diversity slider — the single control */}
-      <div style={{ marginBottom: 36, maxWidth: 480 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{"Diversity constraint"}</div>
-          <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 500 }}>
-            {Math.round(divWeight * 100) + "%"}
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
+        <div style={{ flex: "1 1 280px", maxWidth: 420 }}>
+          <p style={{ fontSize: 14, color: "#555", marginBottom: 10, lineHeight: 1.7 }}>
+            {"In "}
+            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6" }}>{"The Origins of Wokeness"}</a>
+            {", Paul Graham argues that optimizing for diversity necessarily costs quality ("}
+            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6", fontSize: 12 }}>{"footnote 6"}</a>
+            {"). The math is right. Here are 80 candidates with two random, independent attributes. Drag the slider:"}
+          </p>
+          <div style={{ maxWidth: 260, marginBottom: 6 }}>
+            <input type="range" min="0" max="1" step="0.02" value={paretoW}
+              onChange={function(e) { setParetoW(+e.target.value); }}
+              style={{ width: "100%", accentColor: "#2a2a2a" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#999", fontFamily: mono }}>
+              <span>{"optimize A"}</span>
+              <span>{"optimize B"}</span>
+            </div>
           </div>
+          <p style={{ fontSize: 13, color: "#888", lineHeight: 1.6 }}>
+            {"As you optimize for B, your average A drops. You can\u2019t have both. This is the principle Graham is invoking. It\u2019s correct."}
+          </p>
         </div>
-        <input type="range" min="0" max="1" step="0.02" value={divWeight}
-          onChange={function(e) { setDiv(+e.target.value); }}
-          style={{ width: "100%", accentColor: "#1a1a1a" }} />
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", fontFamily: mono, marginTop: 3 }}>
-          <span>{"pure \u201cmerit\u201d"}</span>
-          <span>{"proportional"}</span>
+        <div style={{ flex: "0 0 auto" }}>
+          <ParetoScatter weight={paretoW} />
         </div>
       </div>
 
-      {/* Small multiples — three worlds side by side */}
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+      {/* The pivot */}
+      <div style={{ marginBottom: 20, maxWidth: 620 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, fontFamily: hand, marginBottom: 4, marginTop: 8 }}>
+          {"But what if \u201cObjective A\u201d isn\u2019t what you think it is?"}
+        </h2>
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7 }}>
+          {"The tradeoff holds when your filter measures what you think it measures. What if it\u2019s partly a pattern-match \u2014 rewarding legible backgrounds on top of talent? Below are 100 founders. Click "}
+          <strong>{"Apply Filter"}</strong>
+          {" to see who each world\u2019s filter selects, then drag the diversity slider."}
+        </p>
+        <p style={{ fontSize: 11.5, color: "#999", marginTop: 4, lineHeight: 1.5, fontStyle: "italic" }}>
+          {"\u201cTalent\u201d = future value created. Real but hard to observe at selection time."}
+        </p>
+      </div>
+
+      {/* Assumption sliders + breakeven chart */}
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 24 }}>
+        <div style={{ flex: "1 1 200px", maxWidth: 260 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, fontFamily: hand, marginBottom: 6 }}>
+            {"Your assumptions"}
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
+              <span style={{ color: "#555" }}>{"Real talent edge"}</span>
+              <span style={{ fontFamily: mono, fontWeight: 600 }}>{"+" + Math.round(realEdge * 100) + "%"}</span>
+            </div>
+            <input type="range" min="0" max="0.35" step="0.01" value={realEdge}
+              onChange={function(e) { setRealEdge(+e.target.value); }}
+              style={{ width: "100%", accentColor: "#2874a6" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#aaa", fontFamily: mono }}>
+              <span>{"0% (equal)"}</span>
+              <span>{"35%"}</span>
+            </div>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
+              <span style={{ color: "#555" }}>{"Pattern-match bias"}</span>
+              <span style={{ fontFamily: mono, fontWeight: 600 }}>{"+" + Math.round(biasMag * 100) + "%"}</span>
+            </div>
+            <input type="range" min="0.05" max="0.70" step="0.01" value={biasMag}
+              onChange={function(e) { setBiasMag(+e.target.value); }}
+              style={{ width: "100%", accentColor: "#c0392b" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#aaa", fontFamily: mono }}>
+              <span>{"5%"}</span>
+              <span>{"70%"}</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 9.5, color: "#999", lineHeight: 1.5, marginTop: 4 }}>
+            <div style={{ fontWeight: 600, color: "#777", marginBottom: 2 }}>{"Empirical anchors:"}</div>
+            <div>{"\u2022 Dale & Krueger: Ivy premium \u2248 smaller than it looks"}</div>
+            <div>{"\u2022 Unstructured interviews: r\u22480.20 accuracy"}</div>
+            <div>{"\u2022 Blind auditions: bias ~100%, edge ~0%"}</div>
+            <div>{"\u2022 Diverse VC funds outperform (Gompers & Wang)"}</div>
+          </div>
+        </div>
+        <div style={{ flex: "0 0 auto" }}>
+          <BreakevenChart points={breakevenData} />
+        </div>
+      </div>
+
+      {/* Scroll indicator */}
+      <div style={{ textAlign: "center", marginBottom: 16, color: "#ccc", fontSize: 13 }}>
+        {"\u25bc  explore the simulation below  \u25bc"}
+      </div>
+
+      {/* Apply filter button */}
+      <div style={{ marginBottom: 24 }}>
+        <button onClick={applyFilter}
+          style={{
+            fontFamily: hand, fontSize: 22, fontWeight: 600,
+            padding: "10px 32px", borderRadius: 6,
+            border: "2px solid #2a2a2a",
+            background: filtered ? "#eee" : "#2a2a2a",
+            color: filtered ? "#2a2a2a" : "#f5f3ed",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}>
+          {filtered ? "Reset \u21ba" : "Apply Filter \u2192"}
+        </button>
+        {!filtered ? (
+          <span style={{ marginLeft: 14, fontSize: 13, color: "#999", fontStyle: "italic" }}>
+            {"100 founders, shuffled. Click to sort by true talent and apply each world\u2019s filter."}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Sliders — only active when filtered */}
+      <div style={{ opacity: filtered ? 1 : 0.3, pointerEvents: filtered ? "auto" : "none", transition: "opacity 0.4s" }}>
+        <div style={{ marginBottom: 10, maxWidth: 500 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 600, fontFamily: hand }}>{"Diversity constraint"}</div>
+            <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 500 }}>
+              {Math.round(divWeight * 100) + "%"}
+            </div>
+          </div>
+          <input type="range" min="0" max="1" step="0.02" value={divWeight}
+            onChange={function(e) { setDiv(+e.target.value); }}
+            style={{ width: "100%", accentColor: "#2a2a2a" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", fontFamily: mono, marginTop: 3 }}>
+            <span>{"rank across groups"}</span>
+            <span>{"rank within groups"}</span>
+          </div>
+        </div>
+        <div style={{ marginBottom: 32, maxWidth: 500 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <div style={{ fontSize: 15, fontFamily: hand, color: "#666" }}>{"How selective?"}</div>
+            <div style={{ fontFamily: mono, fontSize: 14, color: "#666" }}>
+              {"top " + Math.round(rate * 100) + "% (" + Math.floor(POOL.length * rate) + " of " + POOL.length + ")"}
+            </div>
+          </div>
+          <input type="range" min="0.08" max="0.5" step="0.01" value={rate}
+            onChange={function(e) { setRate(+e.target.value); }}
+            style={{ width: "100%", accentColor: "#aaa" }} />
+        </div>
+      </div>
+
+      {/* Small multiples — CSS grid for alignment */}
+      {/* Row 1: titles + talent scores */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28 }}>
+        {allData.map(function(d) {
+          var w = d.world;
+          var s = d.stats;
+          var delta = d.delta;
+          var deltaColor = delta > 0.005 ? "#27ae60" : delta < -0.005 ? "#c0392b" : "#999";
+          var deltaSign = delta > 0.005 ? "+" : "";
+          return (
+            <div key={w.id + "-hdr"}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div style={{ fontSize: 20, fontWeight: 600, fontFamily: hand }}>{w.name}</div>
+                {filtered ? (
+                  <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 700, color: "#2a2a2a" }}>
+                    {(s.avgTalent * 100).toFixed(1) + "%"}
+                  </div>
+                ) : null}
+              </div>
+              {filtered && divWeight > 0.02 ? (
+                <div style={{ textAlign: "right", fontFamily: mono, fontSize: 12, fontWeight: 600, color: deltaColor, marginTop: -2 }}>
+                  {deltaSign + (delta * 100).toFixed(1) + "% vs. no diversity"}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      {/* Row 2: subtitles (fixed height) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28, marginTop: 4, marginBottom: 6 }}>
+        {allData.map(function(d) {
+          return (
+            <div key={d.world.id + "-sub"} style={{ fontSize: 11.5, color: "#666", lineHeight: 1.55, paddingBottom: 6, borderBottom: "2px solid #2a2a2a" }}>
+              {d.world.subtitle}
+            </div>
+          );
+        })}
+      </div>
+      {/* Row 3: grids (aligned) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28 }}>
         {allData.map(function(d) {
           var w = d.world;
           var s = d.stats;
@@ -326,74 +1219,149 @@ function App() {
           var deltaSign = delta > 0.005 ? "+" : "";
 
           return (
-            <div key={w.id} style={{ flex: "1 1 280px", maxWidth: 320, minWidth: 260 }}>
-              {/* World title */}
-              <div style={{ marginBottom: 10, borderBottom: "1px solid #ddd", paddingBottom: 8 }}>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>{w.name}</div>
-                <div style={{ fontSize: 11.5, color: "#777", marginTop: 1 }}>{w.subtitle}</div>
-              </div>
+            <div key={w.id}>
+              <TalentGrid selected={d.selected} truthField={w.truth} width={300} rate={rate} filterAnim={filterAnim} />
 
-              {/* Grid */}
-              <TalentGrid selected={d.selected} truthField={w.truth} width={300} />
-
-              {/* Stats as inline prose */}
-              <div style={{ marginTop: 10, fontSize: 13, color: "#333", lineHeight: 1.7 }}>
-                {"Avg talent "}
-                <strong style={{ fontFamily: mono, fontSize: 14 }}>
-                  {(s.avgTalent * 100).toFixed(1) + "%"}
-                </strong>
-                {"  "}
-                <span style={{ color: deltaColor, fontFamily: mono, fontSize: 13 }}>
-                  {"(" + deltaSign + (delta * 100).toFixed(1) + "%)"}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "#666", lineHeight: 1.7 }}>
-                {"Top quartile found: " + s.topFound + "/" + s.topN}
-                {s.missed > 0 ? ". " : ""}
-                {s.missed > 0 ? (
-                  <span style={{ color: "#c0392b" }}>
-                    {s.missed + " high-talent rejected."}
-                  </span>
-                ) : (
-                  <span style={{ color: "#27ae60" }}>{"None missed."}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, color: "#666" }}>
-                {"Pattern share: " + Math.round(s.patShare * 100) + "%"}
-              </div>
+              {/* Method annotation + stats below grid */}
+              {filtered ? (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: divWeight > 0.02 ? "#27ae60" : "#888", fontFamily: mono, marginBottom: 4, lineHeight: 1.5 }}>
+                    {divWeight > 0.02
+                      ? "\u2192 same proxy, ranked within each group"
+                      : "\u2192 ranked by proxy across all candidates"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#555", lineHeight: 1.8 }}>
+                    {s.missed > 0 ? (
+                      <span>
+                        <span style={{ color: "#c0392b", fontWeight: 600 }}>
+                          {s.missed + " high-talent founder" + (s.missed > 1 ? "s" : "") + " rejected"}
+                        </span>
+                        {" \u2014 would be in top " + Math.round(rate * 100) + "% by true talent."}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#27ae60" }}>{"No high talent missed."}</span>
+                    )}
+                  </div>
+                  {/* Group breakdown */}
+                  <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.9, color: "#555" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" style={{ flexShrink: 0 }}>
+                        <circle cx="7" cy="7" r="5.5" fill="#2874a6" />
+                        <circle cx="7" cy="7" r="2" fill="#f5f3ed" />
+                      </svg>
+                      <span>
+                        <strong>{s.patInSel}</strong>{" selected, "}
+                        <span style={{ color: "#999" }}>{s.patNotSel + " not"}</span>
+                        <span style={{ color: "#aaa" }}>{" (of " + s.patTotal + " pattern)"}</span>
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" style={{ flexShrink: 0 }}>
+                        <circle cx="7" cy="7" r="5.5" fill="#2a2a2a" />
+                      </svg>
+                      <span>
+                        <strong>{s.restInSel}</strong>{" selected, "}
+                        <span style={{ color: "#999" }}>{s.restNotSel + " not"}</span>
+                        <span style={{ color: "#aaa" }}>{" (of " + s.restTotal + " non-traditional)"}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           );
         })}
       </div>
 
-      {/* Selection rate — secondary, small */}
-      <div style={{ marginTop: 36, maxWidth: 300 }}>
-        <div style={{ fontSize: 12, color: "#999", fontFamily: mono, marginBottom: 4 }}>
-          {"Selection rate: " + Math.round(rate * 100) + "% (" + Math.floor(POOL.length * rate) + " of " + POOL.length + ")"}
+      {/* Legend — near the visuals */}
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 20, padding: "12px 16px", background: "rgba(0,0,0,0.025)", borderRadius: 6, fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="7" fill="#2a2a2a" />
+          </svg>
+          <span>{"Selected \u2014 non-traditional"}</span>
         </div>
-        <input type="range" min="0.08" max="0.5" step="0.01" value={rate}
-          onChange={function(e) { setRate(+e.target.value); }}
-          style={{ width: "100%", accentColor: "#aaa" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="7" fill="#2874a6" />
+            <circle cx="9" cy="9" r="2.5" fill="#f5f3ed" />
+          </svg>
+          <span>{"Selected \u2014 the pattern (~22%)"}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="6" fill="none" stroke="#c0392b" strokeWidth="1.5" />
+            <line x1="5.5" y1="5.5" x2="12.5" y2="12.5" stroke="#c0392b" strokeWidth="1.3" />
+            <line x1="12.5" y1="5.5" x2="5.5" y2="12.5" stroke="#c0392b" strokeWidth="1.3" />
+          </svg>
+          <span style={{ color: "#c0392b" }}>{"High talent, rejected by filter"}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="6" fill="none" stroke="rgba(42,42,42,0.3)" strokeWidth="1.3" />
+          </svg>
+          <span style={{ color: "#999" }}>{"Not selected (hollow)"}</span>
+        </div>
       </div>
 
-      {/* Annotation */}
-      <div style={{ marginTop: 40, maxWidth: 620, borderTop: "1px solid #ddd", paddingTop: 20 }}>
-        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8 }}>
-          {"Graham argues you cannot simultaneously optimize two non-identical objectives. He\u2019s right\u2014"}
-          <em>{"in his world"}</em>
-          {", where quality is directly measurable and the filter works. Drag the slider in column one and watch quality drop."}
+      {/* Methodology — show don't tell */}
+      <div style={{ marginTop: 44, maxWidth: 700, borderTop: "2px solid #2a2a2a", paddingTop: 20 }}>
+        <p style={{ fontSize: 22, fontFamily: hand, color: "#333", lineHeight: 1.4, marginBottom: 6 }}>
+          {"How the diversity constraint actually works"}
         </p>
-        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
-          {"But most real filters aren\u2019t measuring quality. They\u2019re pattern-matching: "}
-          <em>{"Stanford, YC, male, technical"}</em>
-          {" \u2192 high score. The proxy recognizes the pattern but is nearly blind to talent outside it. In column two, the \u201cmerit\u201d filter is confidently selecting for the wrong thing. The red X\u2019s are real talent your filter can\u2019t see."}
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6, maxWidth: 620 }}>
+          {"A common objection: if you need a filter to select diverse candidates, and you already have a filter, why not just use it? The answer: the diversity constraint uses the "}
+          <strong>{"exact same filter"}</strong>
+          {" \u2014 it just applies it differently."}
         </p>
-        <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
-          {"Drag the diversity slider and the X\u2019s disappear. Quality goes "}
-          <em>{"up"}</em>
-          {". A diversity constraint doesn\u2019t fight quality here\u2014it corrects a broken filter."}
+        <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 16, maxWidth: 620 }}>
+          {"Click below to watch the same 100 candidates rearrange. In across-group mode, the filter\u2019s pattern-match bonus dominates the ranking \u2014 pattern candidates cluster at the top regardless of talent. In within-group mode, that bonus is constant within each group and cancels out. The ranking becomes about whatever real signal the filter has."}
         </p>
+
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={toggleSplit}
+            style={{
+              fontFamily: hand, fontSize: 18, fontWeight: 600,
+              padding: "8px 24px", borderRadius: 6,
+              border: "2px solid #2a2a2a",
+              background: splitMode ? "#27ae60" : "#2a2a2a",
+              color: "#f5f3ed",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}>
+            {splitMode ? "\u2190 Rank across groups" : "Split into groups \u2192"}
+          </button>
+          <span style={{ marginLeft: 14, fontSize: 13, color: "#888" }}>
+            {splitMode
+              ? "Same proxy, ranked within each group. Bias cancels out within groups."
+              : "All 100 ranked by proxy score. Pattern bonus pushes them to the top."}
+          </span>
+        </div>
+
+        <MethodViz splitAnim={splitAnim} rate={rate} />
+
+        <div style={{ marginTop: 16, maxWidth: 620 }}>
+          <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8 }}>
+            <strong>{"The tradeoff is real."}</strong>
+            {" People do cluster into high-performing groups \u2014 Ivy graduates, ex-FAANG, YC alumni. These groups have been pre-filtered, so they likely have a genuine talent edge. A diversity constraint that forces proportional representation will, by definition, exclude some qualified pattern candidates in favor of non-traditional ones with lower expected value."}
+          </p>
+          <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
+            <strong>{"But the filter overstates the difference."}</strong>
+            {" The question is whether your filter\u2019s bias exceeds the real talent gap. If the pattern group is genuinely +6% better but your filter gives them a +40% bonus for legibility, you\u2019re wasting most of your selection on pattern-matching rather than talent-finding. Within-group ranking strips the bonus and lets the real signal \u2014 however noisy \u2014 drive the selection. For pattern candidates, the filter reads them well. For non-traditional candidates, it\u2019s weaker but not zero: traction, technical demos, domain expertise still provide signal."}
+          </p>
+          <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
+            {"The diversity constraint also creates pressure to "}
+            <em>{"build"}</em>
+            {" better evaluation methods for non-traditional candidates. Without it, there\u2019s no incentive \u2014 the filter defaults to the legible pool and calls it merit."}
+          </p>
+          <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 14 }}>
+            {"Graham\u2019s "}
+            <a href="https://paulgraham.com/woke.html" target="_blank" rel="noopener" style={{ color: "#2874a6" }}>{"footnote 6"}</a>
+            {" is mathematically correct: you cannot simultaneously maximize two non-identical objectives. The question is whether the objective your filter is maximizing \u2014 proxy score \u2014 is close enough to the objective you care about \u2014 actual talent. Use the sliders above to decide for yourself."}
+          </p>
+        </div>
       </div>
+
     </div>
   );
 }
