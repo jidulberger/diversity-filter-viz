@@ -1148,18 +1148,25 @@ function App() {
       {/* Sliders — only active when filtered */}
       <div style={{ opacity: filtered ? 1 : 0.3, pointerEvents: filtered ? "auto" : "none", transition: "opacity 0.4s" }}>
         <div style={{ marginBottom: 10, maxWidth: 500 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-            <div style={{ fontSize: 20, fontWeight: 600, fontFamily: hand }}>{"Diversity constraint"}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 }}>
+            <div style={{ fontSize: 20, fontWeight: 600, fontFamily: hand }}>{"Diversity factor"}</div>
             <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 500 }}>
               {Math.round(divWeight * 100) + "%"}
             </div>
           </div>
+          <div style={{ fontSize: 12, color: "#777", marginBottom: 6, lineHeight: 1.5 }}>
+            {divWeight < 0.02
+              ? "Pure filter \u2014 rank all candidates together, take the top scorers."
+              : divWeight > 0.98
+              ? "Fully proportional \u2014 each group gets seats matching their share of the applicant pool (~22% pattern, ~78% non-trad). Best within each group selected."
+              : "Blended \u2014 each group is guaranteed at least " + Math.round(divWeight * 100) + "% of their proportional seats. Rest filled by top overall scorers."}
+          </div>
           <input type="range" min="0" max="1" step="0.02" value={divWeight}
             onChange={function(e) { setDiv(+e.target.value); }}
             style={{ width: "100%", accentColor: "#2a2a2a" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", fontFamily: mono, marginTop: 3 }}>
-            <span>{"rank across groups"}</span>
-            <span>{"rank within groups"}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#aaa", fontFamily: mono, marginTop: 3 }}>
+            <span>{"0% \u2014 pure filter score"}</span>
+            <span>{"100% \u2014 proportional to pool"}</span>
           </div>
         </div>
         <div style={{ marginBottom: 32, maxWidth: 500 }}>
