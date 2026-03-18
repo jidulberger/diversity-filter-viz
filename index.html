@@ -1074,7 +1074,7 @@ function App() {
           {" for legible backgrounds \u2014 Ivy League, FAANG, male, technical. When your quality score is contaminated by bias, optimizing for it isn\u2019t optimizing for quality. It\u2019s optimizing for quality + bias."}
         </p>
         <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7 }}>
-          {"Below are 100 founders with a true talent score (think: future value created). Click "}
+          {"Below are 100 candidates with a true talent score (think: future value created). Click"}
           <strong>{"Apply Filter"}</strong>
           {" to see who three different filters select, then drag the diversity slider and watch what happens to actual talent."}
         </p>
@@ -1147,7 +1147,7 @@ function App() {
         </button>
         {!filtered ? (
           <span style={{ marginLeft: 14, fontSize: 13, color: "#999", fontStyle: "italic" }}>
-            {"100 founders, shuffled. Click to sort by true talent and apply each world\u2019s filter."}
+            {"100 candidates, shuffled. Click to sort by true talent and apply each world\u2019s filter."}
           </span>
         ) : null}
       </div>
@@ -1252,7 +1252,7 @@ function App() {
                     {s.missed > 0 ? (
                       <span>
                         <span style={{ color: "#c0392b", fontWeight: 600 }}>
-                          {s.missed + " high-talent founder" + (s.missed > 1 ? "s" : "") + " rejected"}
+                          {s.missed + " high-talent candidate" + (s.missed > 1 ? "s" : "") + " rejected"}
                         </span>
                         {" \u2014 would be in top " + Math.round(rate * 100) + "% by true talent."}
                       </span>
@@ -1366,9 +1366,9 @@ function App() {
             {" The question is whether your filter\u2019s bias exceeds the real talent gap. If the pattern group is genuinely +6% better but your filter gives them a +40% bonus for legibility, you\u2019re wasting most of your selection on pattern-matching rather than talent-finding. Within-group ranking strips the bonus and lets the real signal \u2014 however noisy \u2014 drive the selection. For pattern candidates, the filter reads them well. For non-traditional candidates, it\u2019s weaker but not zero: traction, technical demos, domain expertise still provide signal."}
           </p>
           <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 10 }}>
-            {"The diversity constraint also creates pressure to "}
-            <em>{"build"}</em>
-            {" better evaluation methods for non-traditional candidates. Without it, there\u2019s no incentive \u2014 the filter defaults to the legible pool and calls it merit."}
+            {"There\u2019s a second-order effect too: a diversity requirement forces evaluators to rethink their criteria. When you "}
+            <em>{"must"}</em>
+            {" fill seats from a broader pool, you can\u2019t fall back on pattern-matching shortcuts. You develop more creative, more accurate evaluation methods \u2014 structured interviews, work samples, blind assessments. The constraint doesn\u2019t just correct for bias in the current filter. It creates pressure to build a better one."}
           </p>
           <p style={{ fontSize: 14, color: "#444", lineHeight: 1.8, marginTop: 14 }}>
             {"Graham\u2019s principle"}
