@@ -9,6 +9,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #f5f3ed; color: #2a2a2a; }
   input[type=range] { height: 4px; }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(6px); }
+  }
 </style>
 </head>
 <body>
@@ -1120,8 +1124,9 @@ function App() {
       </div>
 
       {/* Scroll indicator */}
-      <div style={{ textAlign: "center", marginBottom: 16, color: "#ccc", fontSize: 13 }}>
-        {"\u25bc  explore the simulation below  \u25bc"}
+      <div style={{ textAlign: "center", marginBottom: 16, marginTop: 8, padding: "12px 0" }}>
+        <div style={{ fontSize: 14, color: "#999", fontFamily: hand, marginBottom: 4 }}>{"Scroll down to explore the simulation"}</div>
+        <div style={{ fontSize: 24, color: "#bbb", animation: "bounce 2s infinite" }}>{"\u25bc"}</div>
       </div>
 
       {/* Apply filter button */}
@@ -1156,10 +1161,10 @@ function App() {
           </div>
           <div style={{ fontSize: 12, color: "#777", marginBottom: 6, lineHeight: 1.5 }}>
             {divWeight < 0.02
-              ? "Pure filter \u2014 rank all candidates together, take the top scorers."
+              ? "Pure filter \u2014 rank all candidates by filter score, take the top scorers. But how good is that score?"
               : divWeight > 0.98
-              ? "Fully proportional \u2014 each group gets seats matching their share of the applicant pool (~22% pattern, ~78% non-trad). Best within each group selected."
-              : "Blended \u2014 each group is guaranteed at least " + Math.round(divWeight * 100) + "% of their proportional seats. Rest filled by top overall scorers."}
+              ? "Fully proportional \u2014 each group gets seats matching their share of the applicant pool (~22% pattern, ~78% non-trad). Best within each group by the same filter."
+              : "Blended \u2014 each group is guaranteed at least " + Math.round(divWeight * 100) + "% of their proportional seats. Rest filled by top filter scorers."}
           </div>
           <input type="range" min="0" max="1" step="0.02" value={divWeight}
             onChange={function(e) { setDiv(+e.target.value); }}
