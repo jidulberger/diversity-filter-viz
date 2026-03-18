@@ -1328,12 +1328,10 @@ function App() {
           {"How the diversity constraint actually works"}
         </p>
         <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 6, maxWidth: 620 }}>
-          {"A common objection: if you need a filter to select diverse candidates, and you already have a filter, why not just use it? The answer: the diversity constraint uses the "}
-          <strong>{"exact same filter"}</strong>
-          {" \u2014 it just applies it differently."}
+          {"A common objection: if you need a good filter to select diverse candidates, why not just use that filter for everyone? The answer: you do. The diversity constraint doesn\u2019t require a better filter. It uses the same evaluation \u2014 but removes the cross-group bias by comparing candidates against their own group instead of against everyone."}
         </p>
         <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7, marginBottom: 16, maxWidth: 620 }}>
-          {"Click below to watch the same 100 candidates rearrange. In across-group mode, the filter\u2019s pattern-match bonus dominates the ranking \u2014 pattern candidates cluster at the top regardless of talent. In within-group mode, that bonus is constant within each group and cancels out. The ranking becomes about whatever real signal the filter has."}
+          {"The filter evaluates everyone with the same accuracy. The problem is the additive bonus: pattern candidates start with a higher baseline score just for looking the part. When you rank across groups, that bonus dominates. When you rank within groups, the bonus is the same for everyone in the group \u2014 it cancels out, and the ranking becomes about real signal. Click below to watch:"}
         </p>
 
         <div style={{ marginBottom: 12 }}>
